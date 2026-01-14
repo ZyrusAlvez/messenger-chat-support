@@ -19,27 +19,32 @@ client = Groq(api_key=GROQ_API_KEY)
 
 # Website knowledge base
 website_content = ""
+website_links = ""
 
 # Conversation history per user (stores last 10 messages)
 conversation_history = {}
 
-# Quick links for common requests
-QUICK_LINKS = {
-    "membership": "https://aws-learning-club-uphsl.vercel.app/membership",
-    "discord": "https://discord.com/invite/KFUVjh3Xqt",
-    "facebook": "https://www.facebook.com/awslearningclub",
-    "contact": "awslc.uphsl@gmail.com"
-}
-
 @app.on_event("startup")
 async def load_website_content():
-    global website_content
+    global website_content, website_links
     try:
         async with httpx.AsyncClient() as http_client:
             response = await http_client.get("https://aws-learning-club-uphsl.vercel.app/")
             soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Extract text content
             website_content = soup.get_text(separator="\n", strip=True)
-            print("Website content loaded successfully")
+            
+            # Extract all links
+            links = []
+            for a_tag in soup.find_all('a', href=True):
+                href = a_tag['href']
+                text = a_tag.get_text(strip=True)
+                if href.startswith('http'):
+                    links.append(f"{text}: {href}" if text else href)
+            
+            website_links = "\n".join(links) if links else "No links found"
+            print("Website content and links loaded successfully")
     except Exception as e:
         print(f"Failed to load website: {e}")
 
@@ -66,18 +71,14 @@ async def handle_messages(request: Request):
                 user_text = messaging_event.get("message", {}).get("text")
                 
                 if user_text:
-                    # Check for quick links
-                    response_text = check_quick_links(user_text)
+                    # Get or create conversation history for this user
+                    if sender_id not in conversation_history:
+                        conversation_history[sender_id] = []
                     
-                    if not response_text:
-                        # Get or create conversation history for this user
-                        if sender_id not in conversation_history:
-                            conversation_history[sender_id] = []
-                        
-                        # Build conversation context
-                        history = conversation_history[sender_id]
-                        
-                        system_prompt = f"""You are a representative of AWS Learning Club UPHSL. Be friendly yet professional in your responses.
+                    # Build conversation context
+                    history = conversation_history[sender_id]
+                    
+                    system_prompt = f"""You are a representative of AWS Learning Club UPHSL. Be friendly yet professional in your responses.
 
 Guidelines:
 - Keep responses SHORT to MEDIUM length (2-4 sentences max)
@@ -90,52 +91,41 @@ Guidelines:
 - NEVER use bold, italic, or markdown formatting (**, *, _, etc.) - Messenger shows them as plain text
 - Write in plain text only
 - Be helpful and informative while maintaining professionalism
+- When users ask for links, provide relevant links from the available links below
 
 Club Information:
 {website_content}
 
+Available Links:
+{website_links}
+
 Answer questions about AWS Learning Club naturally and professionally."""
-                        
-                        # Build messages with history
-                        messages = [{"role": "system", "content": system_prompt}]
-                        for i, msg in enumerate(history):
-                            role = "user" if i % 2 == 0 else "assistant"
-                            messages.append({"role": role, "content": msg})
-                        messages.append({"role": "user", "content": user_text})
-                        
-                        ai_response = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=messages,
-                            temperature=0.7,
-                            max_tokens=300
-                        )
-                        response_text = ai_response.choices[0].message.content
-                        
-                        # Update conversation history (keep last 10 messages)
-                        history.append(user_text)
-                        history.append(response_text)
-                        if len(history) > 20:  # 10 exchanges (user + bot)
-                            history.pop(0)
-                            history.pop(0)
+                    
+                    # Build messages with history
+                    messages = [{"role": "system", "content": system_prompt}]
+                    for i, msg in enumerate(history):
+                        role = "user" if i % 2 == 0 else "assistant"
+                        messages.append({"role": role, "content": msg})
+                    messages.append({"role": "user", "content": user_text})
+                    
+                    ai_response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=300
+                    )
+                    response_text = ai_response.choices[0].message.content
+                    
+                    # Update conversation history (keep last 10 messages)
+                    history.append(user_text)
+                    history.append(response_text)
+                    if len(history) > 20:  # 10 exchanges (user + bot)
+                        history.pop(0)
+                        history.pop(0)
                     
                     await send_messenger_message(sender_id, response_text)
                     
     return {"status": "success"}
-
-def check_quick_links(text: str) -> str:
-    """Check if user is asking for specific links."""
-    text_lower = text.lower()
-    
-    if any(word in text_lower for word in ["membership", "member", "join", "sumali"]):
-        return f"Sure! Here's our membership form:\n{QUICK_LINKS['membership']}"
-    
-    if any(word in text_lower for word in ["discord", "server", "chat"]):
-        return f"Join our Discord community:\n{QUICK_LINKS['discord']}"
-    
-    if any(word in text_lower for word in ["facebook", "fb", "page"]):
-        return f"Follow us on Facebook:\n{QUICK_LINKS['facebook']}"
-    
-    return None
 
 async def send_messenger_message(recipient_id: str, text: str):
     """Sends a message back to the user via Facebook's Graph API."""
