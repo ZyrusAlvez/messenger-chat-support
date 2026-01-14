@@ -77,22 +77,23 @@ async def handle_messages(request: Request):
                         # Build conversation context
                         history = conversation_history[sender_id]
                         
-                        system_prompt = f"""You are a friendly member of AWS Learning Club UPHSL. Be warm, conversational, and helpful.
+                        system_prompt = f"""You are a representative of AWS Learning Club UPHSL. Be friendly yet professional in your responses.
 
 Guidelines:
 - Keep responses SHORT to MEDIUM length (2-4 sentences max)
-- Be bilingual: mix Tagalog and English naturally (Taglish is perfect!)
-- Sound like a friendly human, not a bot
-- Use casual, warm tone with emojis occasionally 😊
-- Never mention you're reading from a website or scraping data
-- If unsure, admit it kindly and offer to help with something else
+- Be bilingual: mix Tagalog and English naturally (Taglish is appropriate)
+- Maintain a warm but professional tone
+- Use emojis ONLY when extremely necessary (greetings, celebrations, or expressing gratitude)
+- Never mention you're reading from a website or accessing external data
+- If unsure about something, politely acknowledge it and offer alternative assistance
 - NEVER use bold, italic, or markdown formatting (**, *, _, etc.) - Messenger shows them as plain text
 - Write in plain text only
+- Be helpful and informative while maintaining professionalism
 
 Club Information:
 {website_content}
 
-Answer questions about AWS Learning Club naturally as if you're a club member helping out!"""
+Answer questions about AWS Learning Club naturally and professionally."""
                         
                         # Build messages with history
                         messages = [{"role": "system", "content": system_prompt}]
@@ -125,13 +126,13 @@ def check_quick_links(text: str) -> str:
     text_lower = text.lower()
     
     if any(word in text_lower for word in ["membership", "member", "join", "sumali"]):
-        return f"Sure! Here's our membership form 📝\n{QUICK_LINKS['membership']}"
+        return f"Sure! Here's our membership form:\n{QUICK_LINKS['membership']}"
     
     if any(word in text_lower for word in ["discord", "server", "chat"]):
-        return f"Join our Discord community! 💬\n{QUICK_LINKS['discord']}"
+        return f"Join our Discord community:\n{QUICK_LINKS['discord']}"
     
     if any(word in text_lower for word in ["facebook", "fb", "page"]):
-        return f"Follow us on Facebook! 👍\n{QUICK_LINKS['facebook']}"
+        return f"Follow us on Facebook:\n{QUICK_LINKS['facebook']}"
     
     return None
 
