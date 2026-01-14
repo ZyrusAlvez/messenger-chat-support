@@ -1,7 +1,7 @@
 import os
 import httpx
 from fastapi import FastAPI, Request, Query, HTTPException
-from google import genai
+from groq import Groq
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
@@ -12,10 +12,10 @@ app = FastAPI()
 # Credentials
 FB_PAGE_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
 FB_VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Initialize Gemini Client
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize Groq Client
+client = Groq(api_key=GROQ_API_KEY)
 
 # Website knowledge base
 website_content = ""
@@ -94,15 +94,20 @@ Club Information:
 
 Answer questions about AWS Learning Club naturally as if you're a club member helping out!"""
                         
-                        # Build contents with history
-                        contents = history + [user_text]
+                        # Build messages with history
+                        messages = [{"role": "system", "content": system_prompt}]
+                        for i, msg in enumerate(history):
+                            role = "user" if i % 2 == 0 else "assistant"
+                            messages.append({"role": role, "content": msg})
+                        messages.append({"role": "user", "content": user_text})
                         
-                        ai_response = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=contents,
-                            config={"system_instruction": system_prompt}
+                        ai_response = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=messages,
+                            temperature=0.7,
+                            max_tokens=300
                         )
-                        response_text = ai_response.text
+                        response_text = ai_response.choices[0].message.content
                         
                         # Update conversation history (keep last 10 messages)
                         history.append(user_text)

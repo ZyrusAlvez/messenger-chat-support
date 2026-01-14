@@ -8,6 +8,7 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "fastapi[standard]>=0.128.0",
     "google-genai>=1.57.0",
+    "groq>=1.0.0",
     "httpx>=0.28.1",
     "python-dotenv>=1.2.1",
 ]
