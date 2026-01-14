@@ -20,6 +20,9 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 # Website knowledge base
 website_content = ""
 
+# Conversation history per user (stores last 10 messages)
+conversation_history = {}
+
 # Quick links for common requests
 QUICK_LINKS = {
     "membership": "https://aws-learning-club-uphsl.vercel.app/membership",
@@ -67,7 +70,13 @@ async def handle_messages(request: Request):
                     response_text = check_quick_links(user_text)
                     
                     if not response_text:
-                        # Generate response from Gemini
+                        # Get or create conversation history for this user
+                        if sender_id not in conversation_history:
+                            conversation_history[sender_id] = []
+                        
+                        # Build conversation context
+                        history = conversation_history[sender_id]
+                        
                         system_prompt = f"""You are a friendly member of AWS Learning Club UPHSL. Be warm, conversational, and helpful.
 
 Guidelines:
@@ -85,12 +94,22 @@ Club Information:
 
 Answer questions about AWS Learning Club naturally as if you're a club member helping out!"""
                         
+                        # Build contents with history
+                        contents = history + [user_text]
+                        
                         ai_response = client.models.generate_content(
                             model="gemini-2.5-flash",
-                            contents=user_text,
+                            contents=contents,
                             config={"system_instruction": system_prompt}
                         )
                         response_text = ai_response.text
+                        
+                        # Update conversation history (keep last 10 messages)
+                        history.append(user_text)
+                        history.append(response_text)
+                        if len(history) > 20:  # 10 exchanges (user + bot)
+                            history.pop(0)
+                            history.pop(0)
                     
                     await send_messenger_message(sender_id, response_text)
                     
@@ -108,9 +127,6 @@ def check_quick_links(text: str) -> str:
     
     if any(word in text_lower for word in ["facebook", "fb", "page"]):
         return f"Follow us on Facebook! 👍\n{QUICK_LINKS['facebook']}"
-    
-    if any(word in text_lower for word in ["event", "events", "activities"]):
-        return f"Check out our events here! 🎉\n{QUICK_LINKS['events']}"
     
     return None
 
